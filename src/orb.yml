@@ -1,0 +1,128 @@
+version: 2.1
+
+################################################################################################
+# GitHub: https://github.com/ItinerisLtd/circleci-orbs-wordpress-percy/blob/master/src/orb.yml #
+# CircleCI: https://circleci.com/orbs/registry/orb/itinerisltd/wordpress-percy                 #
+################################################################################################
+
+description: |
+  Take percy.io snapshots at WordPress (Bedrock) projects via PercyScript
+  Source Code: https://github.com/ItinerisLtd/circleci-orbs-wordpress-percy/blob/master/src/orb.yml
+
+orbs:
+  composer: itinerisltd/composer@0
+  yarn: itinerisltd/yarn@0
+
+jobs:
+  snapshot:
+    parameters:
+      executor:
+        type: executor
+        default: php-73
+      dot_env:
+        type: string
+        description: .env file that contain nonsecret environment variables
+        default: .env.percy
+      wp_migrate_db_url:
+        type: string
+        description: remote site's `site_url`, used in `$ wp migratedb pull`
+        default: $WP_MIGRATE_DB_URL
+      wp_migrate_db_secret_key:
+        type: string
+        description: remote site's secret key, used in `$ wp migratedb pull`
+        default: $WP_MIGRATE_DB_SECRET_KEY
+      start:
+        type: string
+        default: wp server --docroot=web
+        description: server start command to run in the background before running Cypress tests
+      command:
+        type: string
+        default: yarn percy:exec
+        description: custom command to take snapshots
+    executor: << parameters.executor >>
+    working_directory: ~/project
+    steps:
+      # TODO: install wp cli
+      - run: curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+      - run: chmod +x wp-cli.phar
+      - run: sudo mv wp-cli.phar /usr/local/bin/wp
+
+      - run: node --version
+      - run: yarn versions
+      - run: php --version
+      - run: wp --info
+      - run: which mysql
+
+      - composer/restore_composer_cache
+      - composer/exec:
+          command: install --no-dev --prefer-dist --no-interaction
+          working_dir: .
+      - composer/exec:
+          command: install --no-dev --prefer-dist --no-interaction
+          working_dir: web/app/themes/itineris
+      - composer/save_composer_cache
+
+      - yarn/restore_yarn_cache
+      - yarn/exec:
+          command: install --frozen-lockfile
+          cwd: .
+      - yarn/exec:
+          command: install --frozen-lockfile
+          cwd: web/app/themes/itineris
+      - yarn/save_yarn_cache
+
+      - yarn/exec:
+          command: build:production
+          cwd: web/app/themes/itineris
+
+      - run: cp << parameters.dot_env >> .env
+      - run: wp db reset --yes --skip-packages --skip-themes --skip-plugins
+      - run: wp core install --url='http://localhost:8080' --title=Percy --admin_user=percy --admin_email='percy@circleci.test' --skip-email --skip-packages --skip-themes --skip-plugins
+
+      # TODO: Allow using other database migration tools
+      - run: wp plugin activate wp-migrate-db-pro wp-migrate-db-pro-cli --skip-packages --skip-themes --skip-plugins
+      - run: wp migratedb pull << parameters.wp_migrate_db_url >> << parameters.wp_migrate_db_secret_key >>
+      - run: wp core update-db --skip-packages --skip-themes --skip-plugins
+
+      - run: wp rewrite flush
+
+      - run:
+          name: Start WordPress server
+          command: <<parameters.start>>
+          background: true
+
+      - run:
+          name: Wait for database booted
+          command: dockerize -wait tcp://localhost:3306 -timeout 1m
+
+      - run:
+          name: Wait for WordPress server booted
+          command: dockerize -wait tcp://localhost:8080 -timeout 1m
+
+      - run:
+          name: Take snapshots
+          command: <<parameters.command>>
+
+executors:
+  php-73:
+    parameters:
+      web_image:
+        type: string
+        default: circleci/php:7.3-node-browsers
+      db_image:
+        type: string
+        default: circleci/mariadb:latest-ram
+    docker:
+        - image: << parameters.web_image >>
+        - image: << parameters.db_image >>
+  php-72:
+    parameters:
+      web_image:
+        type: string
+        default: circleci/php:7.2-node-browsers
+      db_image:
+        type: string
+        default: circleci/mariadb:latest-ram
+    docker:
+        - image: << parameters.web_image >>
+        - image: << parameters.db_image >>

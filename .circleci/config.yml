@@ -1,0 +1,21 @@
+version: 2.1
+
+orbs:
+  circleci-cli: circleci/circleci-cli@0
+
+jobs:
+  vaildate-orb:
+    executor: circleci-cli/default
+    parameters:
+      orb_path:
+        type: string
+    steps:
+      - checkout
+      - run: circleci version
+      - run: circleci orb validate << parameters.orb_path >>
+
+workflows:
+  vaildate-orbs:
+    jobs:
+      - vaildate-orb:
+          orb_path: 'src/orb.yml'
