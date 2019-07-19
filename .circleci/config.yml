@@ -14,8 +14,50 @@ jobs:
       - run: circleci version
       - run: circleci orb validate << parameters.orb_path >>
 
+  build-docker:
+    machine: true
+    parameters:
+      php_version:
+        type: string
+    steps:
+      - checkout
+      - run: docker build --tag itinerisltd/wordpress-percy:php-<< parameters.php_version >> --build-arg PHP_VERSION=<< parameters.php_version >> .
+      - run: echo $DOCKER_PASS | docker login --username $DOCKER_USER --password-stdin
+      - run: docker push itinerisltd/wordpress-percy:php-<< parameters.php_version >>
+
+# Wait for https://discuss.circleci.com/t/workflows-seem-incomplete/13461
+only-master-filter: &only-master-filter
+  filters:
+    branches:
+      only: master
+
+build-docker-workflow: &build-docker-workflow
+  jobs:
+    - build-docker:
+        <<: *only-master-filter
+        name: wordpress-percy-php7.3
+        php_version: '7.3'
+    - build-docker:
+        <<: *only-master-filter
+        name: wordpress-percy-php7.2
+        php_version: '7.2'
+
 workflows:
   vaildate-orbs:
     jobs:
       - vaildate-orb:
-          orb_path: 'src/orb.yml'
+          orb_path: orb.yml
+
+  build-docker-nightly:
+    <<: *build-docker-workflow
+    triggers:
+      - schedule:
+          <<: *only-master-filter
+          # Every day at 12am UTC
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only: master
+
+  build-docker-on-push:
+    <<: *build-docker-workflow
