@@ -37,7 +37,7 @@ jobs:
         description: server start command to run in the background before taking snapshots
       snapshot-command:
         type: string
-        default: yarn percy:exec
+        default: yarn percy:exec --baseUrl=http://localhost:8080
         description: custom command to take snapshots
     executor: << parameters.executor >>
     working_directory: ~/project
