@@ -89,6 +89,11 @@ jobs:
 
       # TODO: Allow using other database migration tools
       - run: wp plugin activate wp-migrate-db-pro wp-migrate-db-pro-cli --skip-packages --skip-themes --skip-plugins
+
+      - run:
+          name: To wake up sleeping server
+          command: wget << parameters.wp-migrate-db-url >> >/dev/null 2>&1
+
       - run: wp migratedb pull << parameters.wp-migrate-db-url >> << parameters.wp-migrate-db-secret-key >>
       - run: wp core update-db --skip-packages --skip-themes --skip-plugins
 
