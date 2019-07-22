@@ -91,8 +91,8 @@ jobs:
       - run: wp plugin activate wp-migrate-db-pro wp-migrate-db-pro-cli --skip-packages --skip-themes --skip-plugins
 
       - run:
-          name: Wake up sleeping server
-          command: curl << parameters.wp-migrate-db-url >>
+          name: Wake up sleeping remote server
+          command: dockerize -wait << parameters.wp-migrate-db-url >> -timeout 1m
 
       - run: wp migratedb pull << parameters.wp-migrate-db-url >> << parameters.wp-migrate-db-secret-key >>
       - run: wp core update-db --skip-packages --skip-themes --skip-plugins
