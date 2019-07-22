@@ -105,12 +105,8 @@ jobs:
           background: true
 
       - run:
-          name: Wait for database booted
-          command: dockerize -wait tcp://localhost:3306 -timeout 1m
-
-      - run:
-          name: Wait for WordPress server booted
-          command: dockerize -wait tcp://localhost:8080 -timeout 1m
+          name: Wait for database and WordPress server booted
+          command: dockerize -wait tcp://localhost:3306 -wait tcp://localhost:8080 -timeout 1m
 
       - run:
           name: Take snapshots
